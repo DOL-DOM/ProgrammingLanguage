@@ -1,7 +1,14 @@
 #LL(1) 문법 검사
-# Recursive Descent Parsing 
+# Recursive Descent Parsing의 input을 구문 분석
+# 소스 코드의 문법 검사
+# 유효성 검사 
+# 심볼 테이블을 업데이트
+
+
 
 from lexical_analyzer import Lexer
+from tokentype import Tokentype, Token
+from node import Node
 
 # Token types
 LEFT_PAREN = 'LEFT_PAREN'
@@ -17,29 +24,36 @@ CONST = 'CONST'
 #lexer에서 받은 토큰을 구조적으로 나타냄 + 검사
 class Parser:
     def __init__(self, lexer):
-        self.lexer = lexer
-        self.current_token = lexer.get_next_token()
-        self.symbol_table = {}
+        self.lexer = lexer  #객체 저장, 토큰 가져옴
+        self.current_token = self.lexer.lexical() #현재 처리 중인 토큰(Token 객체)을 저장
+        self.symbol_table = {}  #변수 이름과 값을 저장하는 테이블
         self.output_log = []    #Parsing 결과 저장
         self.current_line = ""
+        self.parse_tree = Node("Program")  # 파스 트리의 루트 노드
 
     def eat(self, token_type):
-        if self.current_token.type == token_type:
-            self.current_line += f"{self.current_token.value} "
-            self.current_token = self.lexer.get_next_token()
+        if self.current_token[0] == token_type:
+            self.current_line += f"{self.current_token[1]} "  # 값은 튜플의 두 번째 요소
+            self.current_token = self.lexer.lexical()
+            
         else:
-            self.output_log.append(f"(Error) Expected token {token_type} but got {self.current_token.type}")
+            self.output_log.append(f"Error! Expected: {token_type} Now: {self.current_token[0]}")
+
+    def build_parse_tree(self):
+        """파스 트리를 출력"""
+        print("Parse Tree:")
+        print(self.parse_tree)
 
     def program(self):
-        while self.current_token.type != EOF:
+        while self.current_token[0] != EOF:
             self.statements()
-            self.output_log.append("Parsing completed successfully")
-            self.output_log.append("Result ==> " + "; ".join(f"{k}: {v}" for k, v in self.symbol_table.items()) + ";")
-            self.build_parse_tree()
+        self.output_log.append("Parsing completed successfully! ")  #파싱 성공 append
+        self.output_log.append("Symbol Table Result ==> " + "; ".join(f"{k}: {v}" for k, v in self.symbol_table.items()) + ";") #심볼 테이블 출력
+        self.build_parse_tree() 
 
     def statements(self):
         self.statement()
-        while self.current_token.type == SEMI_COLON:
+        while self.current_token[0] == SEMI_COLON:
             self.eat(SEMI_COLON)
             self.statement()
 
@@ -59,6 +73,7 @@ class Parser:
         else:
             raise Exception("Syntax Error: unexpected IDENT")
 
+#_________________________________________________________________
 
     def expression(self, id_count, const_count, op_count):
         left_value = self.term(id_count, const_count, op_count)
@@ -92,7 +107,7 @@ class Parser:
             if var_name in self.symbol_table:
                 return self.symbol_table[var_name]
             else:
-                self.output_log.append(f"(Error) 정의되지 않은 변수({var_name})가 참조됨")
+                self.output_log.append(f"(Error) Undefined variable referenced:({var_name})가 참조됨")
                 return "Unknown"
         elif self.current_token.type == CONST:
             value = int(self.current_token.value)
@@ -105,7 +120,7 @@ class Parser:
             self.eat(RIGHT_PAREN)
             return value
         else:
-            raise Exception("Syntax Error")
+            raise Exception(f"Unexpected token in factor: {self.current_token}")
 
     def evaluate_op(self, left, op, right):
         if left == "Unknown" or right == "Unknown":
