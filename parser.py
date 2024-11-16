@@ -21,16 +21,20 @@ CONST = 'CONST'
 
 #lexer에서 받은 토큰을 구조적으로 나타냄 + 검사
 class Parser:
-    def __init__(self, lexer):
+    def __init__(self, lexer, verbose=False, test=False):
         self.lexer = lexer  #객체 저장, 토큰 가져옴
         self.current_token = self.lexer.lexical() #현재 처리 중인 토큰(Token 객체)을 저장
         self.symbol_table = {}  #변수 이름과 값을 저장하는 테이블
         self.output_log = []    #Parsing 결과 저장
         self.current_line = ""
         self.parse_tree = Node("Program")  # 파스 트리의 루트 노드
+        self.verbose = verbose  # 디버깅 모드 (-v 옵션)
+        self.test = test  # 테스트 모드 (-t 옵션)
 
     def eat(self, token_type):
         if self.current_token[0] == token_type:
+            if self.verbose:
+                print(f"Eating token: {self.current_token}")
             self.current_line += f"{self.current_token[1]} "  # 값은 튜플의 두 번째 요소
             self.current_token = self.lexer.lexical()
             
@@ -43,22 +47,40 @@ class Parser:
         print(self.parse_tree)
 
     def program(self):
-        while self.current_token[0] != EOF:
+        iteration = 0
+        while self.current_token.type != Tokentype.EOF:
+            print(f"DEBUG: Current token before statement: {self.current_token.type} ({self.current_token.value})")
             self.statements()
+            print(f"DEBUG: Current token after statement: {self.current_token.type} ({self.current_token.value})")
+            iteration += 1
+            if iteration > 1000:  # 안전 장치: 1000번 이상 반복 시 강제 중단
+                raise RuntimeError("Infinite loop detected in program()!")
+            print("DEBUG: Program completed. EOF reached.")
         self.output_log.append("Parsing completed successfully! ")  #파싱 성공 append
         self.output_log.append("Symbol Table Result ==> " + "; ".join(f"{k}: {v}" for k, v in self.symbol_table.items()) + ";") #심볼 테이블 출력
         self.build_parse_tree() 
 
     def statements(self):
-        self.statement()
-        while self.current_token[0] == SEMI_COLON:
-            self.eat(SEMI_COLON)
+        # EOF에 도달하면 루프 종료
+        while self.current_token.type != Tokentype.EOF:
             self.statement()
+        #연속된 세미콜론 처리
+        while self.current_token.type == SEMI_COLON and self.current_token.type != EOF:
+            self.eat(SEMI_COLON)
+
 
     def statement(self):
         self.current_line = ""
         id_count, const_count, op_count = 0, 0, 0
-        if self.current_token.type == IDENT:
+        print(f"DEBUG: Current token: {self.current_token}")  # 디버깅 정보 추가
+        
+        # 1. EOF 처리
+        if self.current_token.type == Tokentype.EOF:
+            print("DEBUG: End of File reached.")
+            return   # EOF 처리 후 종료
+        
+        # 2. IDENT 처리
+        elif self.current_token.type == Tokentype.IDENT:
             var_name = self.current_token.value
             self.eat(IDENT)
             id_count += 1
@@ -68,8 +90,39 @@ class Parser:
             self.log_statement(var_name, id_count, const_count, op_count)
             #Parsing 중 statement 함수 끝나면 로그 추가, 각 단계 결과 및 오류 확인 가능
 
+        # 3. CONST 처리
+        elif self.current_token.type == Tokentype.CONST:
+            self.eat(CONST)
+
+        # 4. LEFT_PAREN, RIGHT_PAREN 처리
+        elif self.current_token.type == Tokentype.LEFT_PAREN:
+            self.eat(LEFT_PAREN)
+            value = self.expression(id_count, const_count, op_count)
+            self.eat(RIGHT_PAREN)
+
+        # 5. ADD_OP 처리
+        elif self.current_token.type == Tokentype.ADD_OP:
+            self.eat(ADD_OP)
+
+        # 6. MULT_OP 처리
+        elif self.current_token.type == Tokentype.MULT_OP:
+            self.eat(MULT_OP)
+
+        # 7. SEMI_COLON 처리
+        elif self.current_token.type == Tokentype.SEMI_COLON:
+            self.eat(SEMI_COLON)
+
+        # 8. UNKNOWN 처리
+        elif self.current_token.type == Tokentype.UNKNOWN:
+            self.eat(Tokentype.UNKNOWN)
+
+        # 9. EOF 처리
+        elif self.current_token.type == Tokentype.EOF:
+            self.eat(Tokentype.EOF)
+
+        # 10. 그 외 예외 처리
         else:
-            raise Exception("Syntax Error: unexpected IDENT")
+            raise Exception(f"Syntax Error: What is this token? {self.current_token.type} ({self.current_token.value})")
 
 #_________________________________________________________________
 
@@ -130,9 +183,10 @@ class Parser:
 
     def log_statement(self, var_name, id_count, const_count, op_count):
         # 로그에 출력 형식에 맞게 기록
-        log_entry = f"프로그램에서 읽은 라인: {self.current_line.strip()}"
+        log_entry = f"Program Line: {self.current_line.strip()}"
         log_entry += f"\nID: {id_count}; CONST: {const_count}; OP: {op_count};"
-        log_entry += "\n(OK)"
+        if not self.test:  # 테스트 모드가 아니면 정상 처리 로그만 출력
+            log_entry += "\n(OK)"
         self.output_log.append(log_entry)
 
     def print_output_log(self):
