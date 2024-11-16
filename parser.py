@@ -4,8 +4,6 @@
 # 유효성 검사 
 # 심볼 테이블을 업데이트
 
-
-
 from lexical_analyzer import Lexer
 from tokentype import Tokentype, Token
 from node import Node

@@ -26,3 +26,4 @@ lexer = Lexer(input_text) # Lexer 인스턴스 생성
 parser = Parser(lexer, verbose=v, test=t) # Parser 인스턴스 생성
 parser.program()  # program() 메서드를 통해 파싱 시작
 parser.print_output_log()  # 파싱 결과 출력
+print(parser.parse_tree)
