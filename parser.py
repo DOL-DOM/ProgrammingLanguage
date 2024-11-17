@@ -82,6 +82,7 @@ class Parser(Lexer):#파서 클래스
                 error = "(Error) “정의되지 않은 변수(" + i + ")가 참조됨"
                 self.listMessage.append(error)
                 self.is_error = True
+
             else:
                 error = "Error: Invalid expression"
                 self.listMessage.append(error)
