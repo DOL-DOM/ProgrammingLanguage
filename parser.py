@@ -13,23 +13,23 @@ class Parser(Lexer):#파서 클래스
         """Factor 처리"""
         node = Node("FACTOR", parent=parent)
 
-        if self.next_token == TokenType.LEFT_PAREN:
+        if self.nextToken == TokenType.LEFT_PAREN:
             self.lexical()
             nodeDone = self.expression(node)
            
             self.lexical()
 
-        elif self.next_token in (TokenType.IDENT, TokenType.CONST):
+        elif self.nextToken in (TokenType.IDENT, TokenType.CONST):
             # 식별자 또는 상수 처리
-            Node(TokenType.get_name(self.next_token), value=self.stringToken, parent=node)
+            Node(TokenType.get_name(self.nextToken), value=self.stringToken, parent=node)
             self.lexical()
 
         else:
             # 유효하지 않은 토큰 처리
-            if self.next_token == TokenType.CONST:
+            if self.nextToken == TokenType.CONST:
                 self.const_cnt -= 1
                 self.now_stmt = self.now_stmt[:-len(self.stringToken)]
-            elif self.next_token == TokenType.IDENT:
+            elif self.nextToken == TokenType.IDENT:
                 self.id_cnt -= 1
                 self.now_stmt = self.now_stmt[:-len(self.stringToken)]
             self.wrongChar()
@@ -42,9 +42,9 @@ class Parser(Lexer):#파서 클래스
         node = Node("TERM", parent=parent)
         self.factor(node)
 
-        while self.next_token == TokenType.MULT_OP:
+        while self.nextToken == TokenType.MULT_OP:
             # 연산자 노드 추가
-            operator_node = Node(TokenType.get_name(self.next_token), value=self.stringToken, parent=node)
+            operator_node = Node(TokenType.get_name(self.nextToken), value=self.stringToken, parent=node)
             self.lexical()
             self.factor(node)
 
@@ -55,9 +55,9 @@ class Parser(Lexer):#파서 클래스
         node = Node("EXPRESSION", parent=parent)
         self.term(node)
 
-        while self.next_token == TokenType.ADD_OP:
+        while self.nextToken == TokenType.ADD_OP:
             # 연산자 노드 추가
-            operator_node = Node(TokenType.get_name(self.next_token), value=self.stringToken, parent=node)
+            operator_node = Node(TokenType.get_name(self.nextToken), value=self.stringToken, parent=node)
             self.lexical()
             self.term(operator_node)
 
@@ -79,12 +79,12 @@ class Parser(Lexer):#파서 클래스
                 term += str(self.symbolTable[i])
             elif not i in self.symbolTable or self.symbolTable[i] == "Unknown":
                 # 정의되지 않은 변수 참조 - 에러이지만 파싱 계속 진행
-                error = "(Error) Undefined variable is referenced(" + i + ")"
-                self.list_message.append(error)
+                error = "(Error) “정의되지 않은 변수(" + i + ")가 참조됨"
+                self.listMessage.append(error)
                 self.is_error = True
             else:
                 error = "Error: Invalid expression"
-                self.list_message.append(error)
+                self.listMessage.append(error)
                 return node, "Unknown"
 
         # 결과 계산
@@ -127,7 +127,7 @@ class Parser(Lexer):#파서 클래스
         """Statement 처리 함수"""
         node = Node("STATEMENT", parent=parent)
 
-        if self.next_token == TokenType.IDENT:
+        if self.nextToken == TokenType.IDENT:
             self.id_of_now_stmt = self.stringToken
 
             # 심볼 테이블 업데이트
@@ -140,24 +140,24 @@ class Parser(Lexer):#파서 클래스
 
             # 이전 에러 처리
             if self.is_error:
-                if self.next_token not in (TokenType.SEMI_COLON, TokenType.EOF):
+                if self.nextToken not in (TokenType.SEMI_COLON, TokenType.EOF):
                     self.goNext()
                     self.lexical()
                 return node
 
             # ASSIGN_OP 처리
-            if self.next_token == TokenType.ASSIGN_OP:
+            if self.nextToken == TokenType.ASSIGN_OP:
                 if self.opAndAssign():  # ASSIGN_OP 관련 에러 발생 시 처리
                     self.goNext()
                     return node
             else:
                 # 형식 오류: <ident><assignment_op><expression> 형식이 아님
                 error = "(Error) Missing assignment operator"
-                self.list_message.append(error)
+                self.listMessage.append(error)
                 self.symbolTable[lhs_id] = "Unknown"
                 self.is_error = True
                 self.goNext()
-                if self.next_token not in (TokenType.SEMI_COLON, TokenType.EOF):
+                if self.nextToken not in (TokenType.SEMI_COLON, TokenType.EOF):
                     self.lexical()
                 return node
 
@@ -177,11 +177,11 @@ class Parser(Lexer):#파서 클래스
     def statements(self, parent=None):
         node = Node("Statements", parent=parent)
 
-        while self.next_token != TokenType.EOF:
+        while self.nextToken != TokenType.EOF:
             # 처리할 statement 노드 생성
             self.statement(node)
             # 세미콜론
-            if self.next_token == TokenType.SEMI_COLON:  
+            if self.nextToken == TokenType.SEMI_COLON:  
                 Node("SEMI_COLON", value=self.stringToken, parent=node)
 
                 if not self.verbose:
@@ -196,7 +196,7 @@ class Parser(Lexer):#파서 클래스
 
                 self.lexical()
             # EOF
-            elif self.next_token == TokenType.EOF:  
+            elif self.nextToken == TokenType.EOF:  
                 if not self.verbose:
                     self.end_of_stmt()
                 break
@@ -218,10 +218,10 @@ class Parser(Lexer):#파서 클래스
                     continue
 
                 # 기타 에러 처리
-                if self.next_token == TokenType.CONST:
+                if self.nextToken == TokenType.CONST:
                     self.const_cnt -= 1
                     self.now_stmt = self.now_stmt[:-len(self.stringToken)]
-                elif self.next_token == TokenType.IDENT:
+                elif self.nextToken == TokenType.IDENT:
                     self.id_cnt -= 1
                     self.now_stmt = self.now_stmt[:-len(self.stringToken)]
 

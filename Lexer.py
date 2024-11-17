@@ -8,7 +8,7 @@ class Lexer:
         self.index = 0  
         self.verbose = verbose  # -v
         self.stringToken = ""  # string of current token
-        self.next_token = None  # type of next token
+        self.nextToken = None  # type of next token
         self.before_token = None  # token before 
         self.id_cnt = 0  # 각 statement의 id, const, op의 개수
         self.const_cnt = 0
@@ -23,7 +23,7 @@ class Lexer:
     def printV(self):
         """현재 토큰 정보 (-v 에서만)"""
         if self.verbose:
-            print(f"{self.next_token} ({TokenType.get_name(self.next_token)})")
+            print(f"{self.nextToken} ({TokenType.get_name(self.nextToken)})")
 
     def ErrorSyntax(self):
         """구문 오류를 처리"""
@@ -32,8 +32,8 @@ class Lexer:
         )
         
         # 현재 토큰 상태를 UNKNOWN으로 변경하여 오류 처리
-        original_token = self.next_token
-        self.next_token = TokenType.UNKNOWN
+        original_token = self.nextToken
+        self.nextToken = TokenType.UNKNOWN
         
         # verbose 모드에 따라 출력
         self.printV()
@@ -46,16 +46,16 @@ class Lexer:
         self.goNext()
         
         # EOF 또는 세미콜론이 아닌 경우 계속 lexical 분석
-        if self.next_token not in (TokenType.SEMI_COLON, TokenType.EOF):
+        if self.nextToken not in (TokenType.SEMI_COLON, TokenType.EOF):
             self.lexical()
 
         # 원래 토큰 상태 복원 (결과물에 영향을 미치지 않도록)
-        self.next_token = original_token
+        self.nextToken = original_token
 
 
     def lexical(self):  # 다음 토큰을 읽어오는 함수
         """다음 토큰을 읽어와 설정"""
-        if self.next_token == TokenType.EOF:  # 파일의 끝이면 종료
+        if self.nextToken == TokenType.EOF:  # 파일의 끝이면 종료
             return
         self.noMoreSpace()
         if self.detectEOF(): 
@@ -81,7 +81,7 @@ class Lexer:
         is_eof = self.index >= len(self.source)  # EOF 여부 확인
         if is_eof:
             self.stringToken = "EOF"
-            self.next_token = TokenType.EOF
+            self.nextToken = TokenType.EOF
             if self.verbose:
                 self.printV()  # verbose 모드에서는 현재 토큰 정보 출력
         return is_eof
@@ -109,7 +109,7 @@ class Lexer:
                 return True
             
             else:  # 연속된 식별자가 아닐 경우
-                self.next_token = TokenType.IDENT  # 다음 토큰을 식별자로 설정
+                self.nextToken = TokenType.IDENT  # 다음 토큰을 식별자로 설정
                 if self.verbose:
                     self.printV()  # verbose 모드에서 현재 토큰 출력
                 self.now_stmt += self.stringToken  # 현재 statement에 추가
@@ -141,7 +141,7 @@ class Lexer:
                 self.lexical()  # 다음 토큰으로 이동
                 return True
             else:  # 연속된 상수가 아닐 경우
-                self.next_token = TokenType.CONST  # 다음 토큰을 상수로 설정
+                self.nextToken = TokenType.CONST  # 다음 토큰을 상수로 설정
                 if self.verbose:
                     self.printV()  # verbose 모드에서 현재 토큰 출력
                 self.now_stmt += self.stringToken  # 현재 statement에 추가
@@ -153,10 +153,10 @@ class Lexer:
 
 
     def twoChars(self):  # 두 글자 연산자를 감지하는 함수
-        two_char_op = self.source[self.index:self.index + 2]  # 두 글자 연산자를 감지
-        if two_char_op == ":=":  #:=가 나왔을 때
-            self.stringToken = two_char_op  # stringToken := 저장
-            self.next_token = TokenType.ASSIGN_OP  # 다음 토큰을 ASSIGN_OP으로 설정
+        twoChar = self.source[self.index:self.index + 2]  # 두 글자 연산자를 감지
+        if twoChar == ":=":  #:=가 나왔을 때
+            self.stringToken = twoChar  # stringToken := 저장
+            self.nextToken = TokenType.ASSIGN_OP  # 다음 토큰을 ASSIGN_OP으로 설정
             if self.verbose : self.printV()
             self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 := 추가
 
@@ -167,93 +167,61 @@ class Lexer:
         else:
             return False
 
-    def oneChar(self):  # 한 글자 연산자를 감지하는 함수
-        one_char_op = self.source[self.index]  # 한 글자 연산자를 감지
+    def oneChar(self):  
+        """한 글자 연산자"""
+        if self.index >= len(self.source):
+            return False
 
-        if one_char_op in "+-*/();:=":  # 연산자가 나왔을 때
-            self.stringToken = one_char_op  # stringToken 연산자 저장
-            self.index += 1  # 인덱스 증가
-            if one_char_op == "+":  # 연산자에 따라 다음 토큰 설정
-                self.next_token = TokenType.ADD_OP  # 다음 토큰을 ADD_OP으로 설정
-                if self.verbose: self.printV()
-                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
+        one_char_op = self.source[self.index]
 
-                self.op_cnt += 1  # 연산자 개수 증가
+        if one_char_op in "+-*/();:=":  # 연산자 확인
+            self.stringToken = one_char_op
+            self.index += 1
+            self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
 
-                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
-            elif one_char_op == "-":  # 연산자에 따라 다음 토큰 설정
-                self.next_token = TokenType.ADD_OP  # 다음 토큰을 ADD_OP으로 설정
-                if self.verbose : self.printV()
-                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
-
-                self.op_cnt += 1  # 연산자 개수 증가
-
-                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
-            elif one_char_op == "*":  # 연산자에 따라 다음 토큰 설정
-                self.next_token = TokenType.MULT_OP  # 다음 토큰을 MULT_OP으로 설정
-                if self.verbose : self.printV()
-                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
-
-                self.op_cnt += 1  # 연산자 개수 증가
-
-                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
-            elif one_char_op == "/":  # 연산자에 따라 다음 토큰 설정
-                self.next_token = TokenType.MULT_OP  # 다음 토큰을 MULT_OP으로 설정
-                if self.verbose : self.printV()
-                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
-
-                self.op_cnt += 1  # 연산자 개수 증가
-
-                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
-            elif one_char_op == ";":  # 연산자에 따라 다음 토큰 설정
-                self.next_token = TokenType.SEMI_COLON  # 다음 토큰을 SEMI_COLON으로 설정
-                if self.verbose : self.printV()
-                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
-
-            elif one_char_op == "(":  # 연산자에 따라 다음 토큰 설정
-                self.next_token = TokenType.LEFT_PAREN  # 다음 토큰을 LEFT_PAREN으로 설정
-                if self.verbose : self.printV()
-                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
-
-                if self.before_token == TokenType.IDENT:  # 식별자 다음에 (가 나올 때 - error
-                    error = "(Error) There is left parenthesis after identifier"  # error 메시지 저장
-                    self.listMessage.append(error)  # error 메시지 저장
-                    self.is_error = True  # error 발생 여부 플래그 설정
-
-                    self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
-                    self.goNext()  # 다음 statement로 이동
-                    if self.next_token != TokenType.SEMI_COLON and self.next_token != TokenType.EOF: self.lexical()  # 세미콜론이 아니면 다음 토큰을 읽어옴
+            if one_char_op in "+-":  # ADD_OP 처리
+                self.nextToken = TokenType.ADD_OP
+                self.op_cnt += 1
+                self.NoMultipleOp()
+            elif one_char_op in "*/":  # MULT_OP 처리
+                self.nextToken = TokenType.MULT_OP
+                self.op_cnt += 1
+                self.NoMultipleOp()
+            elif one_char_op == ";":  # SEMI_COLON 처리
+                self.nextToken = TokenType.SEMI_COLON
+            elif one_char_op == "(":  # LEFT_PAREN 처리
+                self.nextToken = TokenType.LEFT_PAREN
+                if self.before_token == TokenType.IDENT:
+                    error = "(Error) There is left parenthesis after identifier"
+                    self.listMessage.append(error)
+                    self.is_error = True
+                    self.NoMultipleOp()
+                    self.goNext()
+                    if self.nextToken not in (TokenType.SEMI_COLON, TokenType.EOF):
+                        self.lexical()
                     return True
-
-                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
-            elif one_char_op == ")":  # 연산자에 따라 다음 토큰 설정
-                self.next_token = TokenType.RIGHT_PAREN  # 다음 토큰을 RIGHT_PAREN으로 설정
-                if self.verbose : self.printV()
-                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
-
-                self.noMoreSpace()  # 공백 무시
-            elif one_char_op == "=" or one_char_op == ":":  # =나 :가 나올 때
-                self.next_token = TokenType.ASSIGN_OP  # 다음 토큰을 ASSIGN_OP으로 설정
-                if self.verbose: self.printV()
-                # :=를 =로 쓴경우 - warning
-                # :=를 :로 쓴경우 - warning
-                # :=로 썼다고 가정하고 계속 진행
+            elif one_char_op == ")":  # RIGHT_PAREN 처리
+                self.nextToken = TokenType.RIGHT_PAREN
+                self.noMoreSpace()
+            elif one_char_op in "=:":
+                # ASSIGN_OP 처리
+                self.nextToken = TokenType.ASSIGN_OP
                 self.stringToken = ":="
+                self.now_stmt += ":="
 
-                self.now_stmt += self.stringToken
-
-                if one_char_op == "=":  # :=를 =로 쓴경우 - warning
-                    warning = "(Warning) Using = instead of := ==> assuming :="
-                    self.listMessage.append(warning)
-                elif one_char_op == ":":  # :=를 :로 쓴경우 - warning
-                    warning = "(Warning) Using : instead of := ==> assuming :="
-                    self.listMessage.append(warning)
+                warning = f"(Warning) Using {one_char_op} instead of := ==> assuming :="
+                self.listMessage.append(warning)
                 self.is_warning = True
 
-                self.opAndAssign()  #:= 다음에 연산자가 나올 때 - error
+                self.opAndAssign()
+
+            if self.verbose:
+                self.printV()
+
             return True
-        else:
-            return False
+
+        return False
+
 
     def noMoreSpace(self):
         """공백을 무시하고 소스 코드 처리"""
@@ -295,15 +263,15 @@ class Lexer:
             error = "(Error) Operator after :="
             self.listMessage.append(error)
             self.goNext()
-            if self.next_token != TokenType.SEMI_COLON and self.next_token != TokenType.EOF: self.lexical()
+            if self.nextToken != TokenType.SEMI_COLON and self.nextToken != TokenType.EOF: self.lexical()
             return True
         else:
             return False
 
     def goNext(self):  
         """다음 statement로 이동 - 오류 발생 시 처리"""
-        while self.index < len(self.source) and self.next_token not in (TokenType.SEMI_COLON, TokenType.EOF):
-            self.before_token = self.next_token
+        while self.index < len(self.source) and self.nextToken not in (TokenType.SEMI_COLON, TokenType.EOF):
+            self.before_token = self.nextToken
             self.noMoreSpace()  # 공백 무시
 
             if self.detectEOF(): 
@@ -327,17 +295,17 @@ class Lexer:
             
 
             # 잘못된 토큰 처리
-            if self.next_token == TokenType.CONST:
+            if self.nextToken == TokenType.CONST:
                 self.const_cnt -= 1
                 self.now_stmt = self.now_stmt[:-len(self.stringToken)]
-            elif self.next_token == TokenType.IDENT:
+            elif self.nextToken == TokenType.IDENT:
                 self.id_cnt -= 1
                 self.now_stmt = self.now_stmt[:-len(self.stringToken)]
             self.wrongChar()  
             self.ErrorSyntax()
 
         # 파일 끝에서 세미콜론 처리
-        if self.next_token == TokenType.SEMI_COLON and self.index == len(self.source):
+        if self.nextToken == TokenType.SEMI_COLON and self.index == len(self.source):
             warning = "(Warning) Semicolon at the end of the program ==> ignored"
             self.is_warning = True
             self.index += 1
