@@ -7,7 +7,7 @@ class Lexer:
         self.source = input_source  
         self.index = 0  
         self.verbose = verbose  # -v
-        self.token_string = ""  # string of current token
+        self.stringToken = ""  # string of current token
         self.next_token = None  # type of next token
         self.before_token = None  # token before 
         self.id_cnt = 0  # 각 statement의 id, const, op의 개수
@@ -20,16 +20,15 @@ class Lexer:
         self.is_error = False  # Error
         self.is_warning = False  # Warning
 
-    def print_v(self):
+    def printV(self):
         """현재 토큰 정보 (-v 에서만)"""
         if self.verbose:
             print(f"{self.next_token} ({TokenType.get_name(self.next_token)})")
 
-    def syntax_error(self):
+    def ErrorSyntax(self):
         """구문 오류를 처리"""
         error_message = (
-            "(Error) Syntax error - invalid token or invalid token sequence "
-            "or missing token or invalid character"
+            "(Error) Syntax error - invalid token"
         )
         
         # 현재 토큰 상태를 UNKNOWN으로 변경하여 오류 처리
@@ -37,7 +36,7 @@ class Lexer:
         self.next_token = TokenType.UNKNOWN
         
         # verbose 모드에 따라 출력
-        self.print_v()
+        self.printV()
         
         # 오류 메시지 추가
         self.listMessage.append(error_message)
@@ -55,201 +54,193 @@ class Lexer:
 
 
     def lexical(self):  # 다음 토큰을 읽어오는 함수
-        if self.next_token == TokenType.EOF: return  # 파일의 끝이면 종료
+        """다음 토큰을 읽어와 설정"""
+        if self.next_token == TokenType.EOF:  # 파일의 끝이면 종료
+            return
+        self.noMoreSpace()
+        if self.detectEOF(): 
+            return
+        if self.detectId(): 
+            return
+        if self.detectConst(): 
+            return
+        if self.twoChars(): #연산자(2): 두 글자 연산자
+            return
+        if self.oneChar(): #연산자(1) : 한 글자 연산자
+            return
 
-        self.before_token = self.next_token
+        # 잘못된 문자 처리
+        self.wrongChar()
 
-        self.ignore_blank()  # 공백 무시
+        # 구문 오류 처리
+        self.ErrorSyntax()
 
-        check = self.detect_EOF()  # 파일의 끝을 감지
-        if check: return
 
-        check = self.detect_id()  # 식별자를 감지
-        if check: return
-
-        check = self.detect_const()  # 상수를 감지
-        if check: return
-
-        check = self.detect_two_cahr_op()  # 두 글자 연산자를 감지
-        if check: return
-
-        check = self.detect_one_char_op()  # 한 글자 연산자를 감지
-        if check: return
-
-        #여기에 도달하였다는 것은 허용되지 않은 문자가 포함되었다는 것임
-        if self.next_token == TokenType.CONST:
-            self.const_cnt -= 1
-            self.now_stmt = self.now_stmt[:-len(self.token_string)]
-        elif self.next_token == TokenType.IDENT:
-            self.id_cnt -= 1
-            self.now_stmt = self.now_stmt[:-len(self.token_string)]
-        self.after_invalid_char()
-        self.syntax_error()
-
-    def detect_EOF(self):  # 파일의 끝을 감지하는 함수
-        if self.index >= len(self.source):
-            self.token_string = "EOF"
+    def detectEOF(self):
+        """파일의 끝을 감지하고 EOF 토큰 설정"""
+        is_eof = self.index >= len(self.source)  # EOF 여부 확인
+        if is_eof:
+            self.stringToken = "EOF"
             self.next_token = TokenType.EOF
-            if self.verbose: self.print_v()
-            return True
-        else:
-            return False
+            if self.verbose:
+                self.printV()  # verbose 모드에서는 현재 토큰 정보 출력
+        return is_eof
 
-    def detect_id(self):  # 식별자를 감지하는 함수
-        ident_match = re.match(r"[a-zA-Z_][a-zA-Z0-9_]*", self.source[self.index:])  # 정규표현식으로 식별자를 감지
-        if ident_match:  # 식별자가 나왔을 때
-            self.token_string = ident_match.group()  # token_string에 식별자 문자열 저장
-            if self.before_token == TokenType.IDENT:  # 식별자가 연속해서 나올 때 - warning
-                # 식별자가 연속해서 나올 때 - warning
-                warning = "(Warning) Continuous identifiers - ignoring identifiers" + "("
-
-                if self.index < len(self.source) and self.source[self.index] not in "+-*/();:= ":  # 식별자가 끝날때 까지
-                    while self.index < len(self.source) and self.source[self.index] not in "+-*/();:= ":
-                        warning += self.source[self.index]
-                        self.index += 1
-
-                warning += ")"  # warning 메시지 저장
-
-                self.listMessage.append(warning)
-                self.is_warning = True  # warning 발생 여부 플래그 설정
-                # 뒤에 나온 식별자는 무시
-                # 뒤에 나온 식별자가 정의되었는지 여부는 확인하지 않음 - 해당 에러도 출력하지 않음
-                self.index += len(self.token_string)
-                self.ignore_blank()
-                self.lexical()
-                return True
-            else:  # 식별자가 연속해서 나오지 않을 때
-                self.next_token = TokenType.IDENT  # 다음 토큰을 식별자로 설정
-                if self.verbose : self.print_v()
-                self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 식별자 추가
-
-                self.index += len(self.token_string)  # 인덱스 증가
-
-                self.id_cnt += 1
-
-                # 식별자가 정의되지 않았을 때 "Unknown"으로 설정
-                if self.token_string not in self.symbolTable and not self.is_error: self.symbolTable[
-                    self.token_string] = "Unknown"
-
-                return True
-        else:
-            return False
-
-    def detect_const(self):  # 상수를 감지하는 함수
-        const_match = re.match(r'-?\d+(\.\d+)?', self.source[self.index:])  # 정규표현식으로 상수를 감지
-        if const_match:  # 상수가 나왔을 때
-            self.token_string = const_match.group()  # token_string에 상수 문자열 저장
-
-            if self.before_token == TokenType.CONST:  # 상수가 연속해서 나올 때 - warning
-                warning = "(Warning) Continuous constants - ignoring constants" + "(" + self.token_string + ")"  # warning 메시지 저장
-                self.listMessage.append(warning)  # warning 메시지 저장
-                self.is_warning = True
-                # 뒤에 나온 상수는 무시
-                self.index += len(self.token_string)
-                self.ignore_blank()
-                self.lexical()
-                return True
-            else:  # 상수가 연속해서 나오지 않을 때
-                self.next_token = TokenType.CONST  # 다음 토큰을 상수로 설정
-                if self.verbose : self.print_v()
-                self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 상수 추가
-
-                self.index += len(self.token_string)  # 인덱스 증가
-                self.const_cnt += 1  # 상수 개수 증가
+    def detectId(self):  
+        """식별자를 감지하고 처리"""
+        matchIDENT = re.match(r"[a-zA-Z_][a-zA-Z0-9_]*", self.source[self.index:])
+        if matchIDENT:  # 식별자가 감지되었을 경우
+            self.stringToken = matchIDENT.group()  # 현재 토큰에 문자열 저장
+            if self.before_token == TokenType.IDENT:  # 식별자가 연속됨 - warning
+                warning = "(Warning) Too many identifiers, ignored "
                 
-            return True
-        else:
-            return False
+                # 식별자가 끝날 때까지 경고 메시지 생성
+                while self.index < len(self.source) and self.source[self.index] not in "+-*/();:= ":
+                    warning += self.source[self.index]
+                    self.index += 1
 
-    def detect_two_cahr_op(self):  # 두 글자 연산자를 감지하는 함수
+                self.listMessage.append(warning)  # 경고 메시지 추가
+                self.is_warning = True  # 경고 플래그
+
+                # 뒤에 나온 식별자 무시
+                self.index += len(self.stringToken)
+                self.noMoreSpace()
+                self.lexical()  # 다음 토큰으로 이동
+                return True
+            
+            else:  # 연속된 식별자가 아닐 경우
+                self.next_token = TokenType.IDENT  # 다음 토큰을 식별자로 설정
+                if self.verbose:
+                    self.printV()  # verbose 모드에서 현재 토큰 출력
+                self.now_stmt += self.stringToken  # 현재 statement에 추가
+
+                self.index += len(self.stringToken)  # 인덱스 증가
+                self.id_cnt += 1  # 식별자 카운트 증가
+
+                # 식별자가 심볼 테이블에 없으면 "Unknown"으로 추가
+                if self.stringToken not in self.symbolTable and not self.is_error:
+                    self.symbolTable[self.stringToken] = "Unknown"
+                return True
+        return False
+
+
+    def detectConst(self):  
+        """상수를 감지하고 처리"""
+        matchCONST = re.match(r'-?\d+(\.\d+)?', self.source[self.index:])  
+        if matchCONST:  
+            self.stringToken = matchCONST.group()  # 현재 토큰에 상수 문자열 저장
+
+            if self.before_token == TokenType.CONST:  # 상수가 연속해서 나올 경우
+                warning = f"(Warning) Too many constants - ignored other constants ({self.stringToken})"
+                self.listMessage.append(warning)  
+                self.is_warning = True  # 경고 플래그
+
+                # 뒤에 나온 상수 무시
+                self.index += len(self.stringToken)
+                self.noMoreSpace()
+                self.lexical()  # 다음 토큰으로 이동
+                return True
+            else:  # 연속된 상수가 아닐 경우
+                self.next_token = TokenType.CONST  # 다음 토큰을 상수로 설정
+                if self.verbose:
+                    self.printV()  # verbose 모드에서 현재 토큰 출력
+                self.now_stmt += self.stringToken  # 현재 statement에 추가
+
+                self.index += len(self.stringToken)  # 인덱스 증가
+                self.const_cnt += 1  # 상수 카운트 증가
+            return True
+        return False  # 상수가 감지되지 않음
+
+
+    def twoChars(self):  # 두 글자 연산자를 감지하는 함수
         two_char_op = self.source[self.index:self.index + 2]  # 두 글자 연산자를 감지
         if two_char_op == ":=":  #:=가 나왔을 때
-            self.token_string = two_char_op  # token_string에 := 저장
+            self.stringToken = two_char_op  # stringToken := 저장
             self.next_token = TokenType.ASSIGN_OP  # 다음 토큰을 ASSIGN_OP으로 설정
-            if self.verbose : self.print_v()
-            self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 := 추가
+            if self.verbose : self.printV()
+            self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 := 추가
 
             self.index += 2  # 인덱스 증가
 
-            self.op_after_assign_op()  #:= 다음에 연산자가 나올 때 - error
+            self.opAndAssign()  #:= 다음 연산자 나오면 에러
             return True
         else:
             return False
 
-    def detect_one_char_op(self):  # 한 글자 연산자를 감지하는 함수
+    def oneChar(self):  # 한 글자 연산자를 감지하는 함수
         one_char_op = self.source[self.index]  # 한 글자 연산자를 감지
 
         if one_char_op in "+-*/();:=":  # 연산자가 나왔을 때
-            self.token_string = one_char_op  # token_string에 연산자 저장
+            self.stringToken = one_char_op  # stringToken 연산자 저장
             self.index += 1  # 인덱스 증가
             if one_char_op == "+":  # 연산자에 따라 다음 토큰 설정
                 self.next_token = TokenType.ADD_OP  # 다음 토큰을 ADD_OP으로 설정
-                if self.verbose: self.print_v()
-                self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 연산자 추가
+                if self.verbose: self.printV()
+                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
 
                 self.op_cnt += 1  # 연산자 개수 증가
 
-                self.ignore_multiple_op()  # 연산자가 여러개 연속해서 나올 때 - warning
+                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
             elif one_char_op == "-":  # 연산자에 따라 다음 토큰 설정
                 self.next_token = TokenType.ADD_OP  # 다음 토큰을 ADD_OP으로 설정
-                if self.verbose : self.print_v()
-                self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 연산자 추가
+                if self.verbose : self.printV()
+                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
 
                 self.op_cnt += 1  # 연산자 개수 증가
 
-                self.ignore_multiple_op()  # 연산자가 여러개 연속해서 나올 때 - warning
+                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
             elif one_char_op == "*":  # 연산자에 따라 다음 토큰 설정
                 self.next_token = TokenType.MULT_OP  # 다음 토큰을 MULT_OP으로 설정
-                if self.verbose : self.print_v()
-                self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 연산자 추가
+                if self.verbose : self.printV()
+                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
 
                 self.op_cnt += 1  # 연산자 개수 증가
 
-                self.ignore_multiple_op()  # 연산자가 여러개 연속해서 나올 때 - warning
+                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
             elif one_char_op == "/":  # 연산자에 따라 다음 토큰 설정
                 self.next_token = TokenType.MULT_OP  # 다음 토큰을 MULT_OP으로 설정
-                if self.verbose : self.print_v()
-                self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 연산자 추가
+                if self.verbose : self.printV()
+                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
 
                 self.op_cnt += 1  # 연산자 개수 증가
 
-                self.ignore_multiple_op()  # 연산자가 여러개 연속해서 나올 때 - warning
+                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
             elif one_char_op == ";":  # 연산자에 따라 다음 토큰 설정
                 self.next_token = TokenType.SEMI_COLON  # 다음 토큰을 SEMI_COLON으로 설정
-                if self.verbose : self.print_v()
-                self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 연산자 추가
+                if self.verbose : self.printV()
+                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
 
             elif one_char_op == "(":  # 연산자에 따라 다음 토큰 설정
                 self.next_token = TokenType.LEFT_PAREN  # 다음 토큰을 LEFT_PAREN으로 설정
-                if self.verbose : self.print_v()
-                self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 연산자 추가
+                if self.verbose : self.printV()
+                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
 
                 if self.before_token == TokenType.IDENT:  # 식별자 다음에 (가 나올 때 - error
                     error = "(Error) There is left parenthesis after identifier"  # error 메시지 저장
                     self.listMessage.append(error)  # error 메시지 저장
                     self.is_error = True  # error 발생 여부 플래그 설정
 
-                    self.ignore_multiple_op()  # 연산자가 여러개 연속해서 나올 때 - warning
+                    self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
                     self.goNext()  # 다음 statement로 이동
                     if self.next_token != TokenType.SEMI_COLON and self.next_token != TokenType.EOF: self.lexical()  # 세미콜론이 아니면 다음 토큰을 읽어옴
                     return True
 
-                self.ignore_multiple_op()  # 연산자가 여러개 연속해서 나올 때 - warning
+                self.NoMultipleOp()  # 연산자가 여러개 연속해서 나올 때 - warning
             elif one_char_op == ")":  # 연산자에 따라 다음 토큰 설정
                 self.next_token = TokenType.RIGHT_PAREN  # 다음 토큰을 RIGHT_PAREN으로 설정
-                if self.verbose : self.print_v()
-                self.now_stmt += self.token_string  # 현재 파싱 중인 statement에 연산자 추가
+                if self.verbose : self.printV()
+                self.now_stmt += self.stringToken  # 현재 파싱 중인 statement에 연산자 추가
 
-                self.ignore_blank()  # 공백 무시
+                self.noMoreSpace()  # 공백 무시
             elif one_char_op == "=" or one_char_op == ":":  # =나 :가 나올 때
                 self.next_token = TokenType.ASSIGN_OP  # 다음 토큰을 ASSIGN_OP으로 설정
-                if self.verbose: self.print_v()
+                if self.verbose: self.printV()
                 # :=를 =로 쓴경우 - warning
                 # :=를 :로 쓴경우 - warning
                 # :=로 썼다고 가정하고 계속 진행
-                self.token_string = ":="
+                self.stringToken = ":="
 
-                self.now_stmt += self.token_string
+                self.now_stmt += self.stringToken
 
                 if one_char_op == "=":  # :=를 =로 쓴경우 - warning
                     warning = "(Warning) Using = instead of := ==> assuming :="
@@ -259,123 +250,132 @@ class Lexer:
                     self.listMessage.append(warning)
                 self.is_warning = True
 
-                self.op_after_assign_op()  #:= 다음에 연산자가 나올 때 - error
+                self.opAndAssign()  #:= 다음에 연산자가 나올 때 - error
             return True
         else:
             return False
 
-    def ignore_blank(self):
-        while self.index < len(self.source) and ord(self.source[self.index]) <= 32:
-            # 공백이면 self.index를 1 증가시키고 self.now_stmt에 공백 추가
-            # 공백이 아니면 self.source에서 self.source[self.index]를 제거
-            if self.source[self.index] == " ":
-                self.now_stmt += " "
-                self.index += 1
+    def noMoreSpace(self):
+        """공백을 무시하고 소스 코드 처리"""
+        while self.index < len(self.source):
+            char = self.source[self.index]
+            if char.isspace():  # 공백 문자인지 확인
+                if char == " ":
+                    self.now_stmt += " "  # 공백 추가
+                self.index += 1  # 공백 문자는 건너뜀
             else:
-                self.source = self.source[:self.index] + self.source[self.index + 1:]
+                break  # 공백이 아니면 반복 종료
 
-    def ignore_multiple_op(self):  # 연산자가 여러개 연속해서 나올 때 - warning
-        self.ignore_blank()
+
+    def NoMultipleOp(self):  
+        """연속된 연산자 무시 및 경고 메시지 추가"""
+        self.noMoreSpace()
         if self.index < len(self.source) and self.source[self.index] in "+-*/:=)":
-            # 연산자가 여러개 연속해서 나올 때 - warning
-            # )다음에는 당연히 연산자가 나올 수 있으므로 )가 아닐 때만 경고
-            warning = "(Warning) Using multiple operators(operater or left_paren) ==> ignoring multiple operators except the first one("
             self.is_warning = True
+            # 기본 경고 메시지 설정
+            warning = "(Warning) More than one operator ==> ignored other operators except the first one"
+            first_operator = self.source[self.index]  # 첫 번째 연산자 저장
+            warning += first_operator
+            # 공백 처리
+            while self.index < len(self.source) and self.source[self.index].isspace():
+                self.index += 1  # 공백 건너뜀
+            # 연속된 연산자 및 공백 무시
             while self.index < len(self.source) and self.source[self.index] in "+-*/:=)":
-                self.index += 1
-                warning += self.source[self.index - 1]
+                self.index += 1  # 연산자 건너뜀
 
-                # ignore_blank() 대용
-                while self.index < len(self.source) and ord(self.source[self.index]) <= 32:
-                    self.now_stmt += " "
-                    warning += " "
-                    self.index += 1
-            warning += ")"
-            self.listMessage.append(warning)
+           
+            self.listMessage.append(warning)  # 경고 메시지 추가
 
-    def op_after_assign_op(self):  #:= 다음에 연산자가 나올 때 - error
-        self.ignore_blank()
+
+    def opAndAssign(self):  #:= 다음에 연산자가 나올 때 - error
+        self.noMoreSpace()
         if self.index < len(self.source) and self.source[self.index] in "+-*/:=;)":
             # 대입 연산자 이후 다른 연산자가 나올때 - error
-            error = "(Error) Operator(operater or right_paren, semi_colon, assign_op) after assignment operator"
-            self.listMessage.append(error)
             self.is_error = True
+            error = "(Error) Operator after :="
+            self.listMessage.append(error)
             self.goNext()
             if self.next_token != TokenType.SEMI_COLON and self.next_token != TokenType.EOF: self.lexical()
             return True
         else:
             return False
 
-    def goNext(self):  # 다음 statement로 이동 - error발생시 파싱을 계속 할수 없으므로 lexer를 변형한 이 함수를 사용
-        while self.index < len(self.source) and self.next_token != TokenType.SEMI_COLON and self.next_token != TokenType.EOF:
+    def goNext(self):  
+        """다음 statement로 이동 - 오류 발생 시 처리"""
+        while self.index < len(self.source) and self.next_token not in (TokenType.SEMI_COLON, TokenType.EOF):
             self.before_token = self.next_token
-            self.ignore_blank()  # 공백 무시
-            check = self.detect_EOF()  # 파일의 끝을 감지
-            if check: return
+            self.noMoreSpace()  # 공백 무시
 
-            check = self.detect_id()  # 식별자를 감지
-            if check:
-                # 선언되지 않은 식별자가 나왔을 때 - error
-                # 원래는 파서가 발견해야하는 오류 이지만 이미 앞에서 오류가 발생하여 파싱이 중단되었을 경우에는 Lexer가 발견해야함
-                if self.token_string not in self.symbolTable:
-                    error = "(Error) Using undeclared identifier(" + self.token_string + ")"
+            if self.detectEOF(): 
+                return
+
+            if self.detectId():
+                if self.stringToken not in self.symbolTable:
+                    # 선언되지 않은 식별자 - error
+                    error = f"(Error) Using undeclared identifier({self.stringToken})"
                     self.listMessage.append(error)
                     self.is_error = True
                 continue
 
-            check = self.detect_const()  # 상수를 감지
-            if check: continue
+            if self.twoChars(): 
+                continue
+            if self.oneChar(): 
+                continue
+            if self.detectConst(): 
+                continue
 
-            check = self.detect_two_cahr_op()  # 두 글자 연산자를 감지
-            if check: continue
+            
 
-            check = self.detect_one_char_op()  # 한 글자 연산자를 감지
-            if check: continue
-
+            # 잘못된 토큰 처리
             if self.next_token == TokenType.CONST:
                 self.const_cnt -= 1
-                self.now_stmt = self.now_stmt[:-len(self.token_string)]
+                self.now_stmt = self.now_stmt[:-len(self.stringToken)]
             elif self.next_token == TokenType.IDENT:
                 self.id_cnt -= 1
-                self.now_stmt = self.now_stmt[:-len(self.token_string)]
-            self.after_invalid_char()  # 허용되지 않은 문자가 나왔을 때
-            self.syntax_error()
+                self.now_stmt = self.now_stmt[:-len(self.stringToken)]
+            self.wrongChar()  
+            self.ErrorSyntax()
 
+        # 파일 끝에서 세미콜론 처리
         if self.next_token == TokenType.SEMI_COLON and self.index == len(self.source):
-            # 세미콜론이 나왔는데 파일의 끝이면 - warning
-            warning = "(Warning) There is semicolon at the end of the program ==> ignoring semicolon"
-            self.now_stmt = self.now_stmt[:-1]
-            self.listMessage.append(warning)
+            warning = "(Warning) Semicolon at the end of the program ==> ignored"
             self.is_warning = True
             self.index += 1
+            self.now_stmt = self.now_stmt[:-1]
+            self.listMessage.append(warning)
+            
 
-    def after_invalid_char(self):
+
+    def wrongChar(self):
         while self.index < len(self.source) and self.source[self.index] not in "+-*/();:= ":
             self.index += 1
 
-    def end_of_stmt(self):  # statement마다 실행되는 함수
+    def end_of_stmt(self):  
+        """각 statement의 종료 시 처리"""
+        # 에러가 발생한 경우 해당 statement의 ID를 Unknown으로 설정
         if self.is_error and self.id_of_now_stmt in self.symbolTable:
-            # 에러가 발생한 경우 - 해당 statement의 id를 Unknown으로 설정
             self.symbolTable[self.id_of_now_stmt] = "Unknown"
 
-        if not self.verbose:  # -v 옵션 없을 때
+        if not self.verbose:  # -v 옵션이 없을 때
             print(self.now_stmt)  # 현재 파싱한 statement 출력
-            # -v 옵션 없을 때
-            # ex) ID: 2; CONST: 1; OP: 1;
+
+            # ID, CONST, OP 개수 출력
             print(f"ID: {self.id_cnt}; CONST: {self.const_cnt}; OP: {self.op_cnt};")
 
-            for i in self.listMessage:  # 에러, 경고 메시지 출력
-                print(i)
+            # 에러, 경고 메시지 출력
+            for message in self.listMessage:
+                print(message)
+            # 에러 및 경고가 없는 경우 OK 출력
+            if not self.is_warning and not self.is_error:
+                print("(OK)\n")
 
-            if self.is_error == True or self.is_warning == True:
-                print()
-
-            if self.is_warning == False and self.is_error == False:  # 에러, 경고가 없을 때
-                if not self.verbose: print("(OK)\n")  # OK 출력
-
-            # 다음 statement로 넘어가기 전에 now_stme, id_cnt, const_cnt, op_cnt, is_error, is_warning, listMessage 초기화
-            self.now_stmt = ""
-            self.id_cnt, self.const_cnt, self.op_cnt = 0, 0, 0
-            self.is_error, self.is_warning, self.before_token = False, False, None
-            self.listMessage = []
-            self.id_of_now_stmt = None
+        # 상태 초기화
+        self.reset_statement_state()
+        
+    def reset_statement_state(self):
+        """현재 statement의 상태를 초기화"""
+        self.now_stmt = ""
+        self.id_cnt, self.const_cnt, self.op_cnt = 0, 0, 0
+        self.is_error, self.is_warning, self.before_token = False, False, None
+        self.listMessage = []
+        self.id_of_now_stmt = None
