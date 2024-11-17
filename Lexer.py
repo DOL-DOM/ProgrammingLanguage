@@ -156,19 +156,7 @@ class Lexer:
 
                 self.index += len(self.token_string)  # 인덱스 증가
                 self.const_cnt += 1  # 상수 개수 증가
-                if self.index < len(self.source) and self.source[self.index] == "." and "." in self.token_string:
-                    # 소수점이 여러개일 때 - warning
-                    # 두번째 소수점 이후 - 앞으로 파싱할 부분이므로 수정 가능
-                    # 두번째 소수점 이하는 무시
-                    warning = "(Warning) Multiple decimal points - ignoring decimal points and digits after the second decimal point("
-                    self.is_warning = True
-                    while self.index < len(self.source) and (
-                            self.source[self.index] == "." or self.source[self.index].isdigit()):
-                        warning += self.source[self.index]
-                        self.index += 1
-                    warning += ")"
-                    self.listMessage.append(warning)
-                    self.ignore_blank()
+                
             return True
         else:
             return False
