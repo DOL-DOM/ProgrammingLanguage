@@ -13,10 +13,10 @@ class Lexer:
         self.id_cnt = 0  # 각 statement의 id, const, op의 개수
         self.const_cnt = 0
         self.op_cnt = 0
-        self.symbol_table = {}  # symbol table
+        self.symbolTable = {}  # symbol table
         self.id_of_now_stmt = None  # statement의 id
         self.now_stmt = ""  # statement
-        self.list_message = []  # saved message list
+        self.listMessage = []  # saved message list
         self.is_error = False  # Error
         self.is_warning = False  # Warning
 
@@ -29,7 +29,7 @@ class Lexer:
         """구문 오류를 처리"""
         error_message = (
             "(Error) Syntax error - invalid token or invalid token sequence "
-            "or missing token or invalid characters"
+            "or missing token or invalid character"
         )
         
         # 현재 토큰 상태를 UNKNOWN으로 변경하여 오류 처리
@@ -40,11 +40,11 @@ class Lexer:
         self.print_v()
         
         # 오류 메시지 추가
-        self.list_message.append(error_message)
+        self.listMessage.append(error_message)
         self.is_error = True
 
         # 다음 statement로 이동
-        self.go_to_next_statement()
+        self.goNext()
         
         # EOF 또는 세미콜론이 아닌 경우 계속 lexical 분석
         if self.next_token not in (TokenType.SEMI_COLON, TokenType.EOF):
@@ -110,7 +110,7 @@ class Lexer:
 
                 warning += ")"  # warning 메시지 저장
 
-                self.list_message.append(warning)
+                self.listMessage.append(warning)
                 self.is_warning = True  # warning 발생 여부 플래그 설정
                 # 뒤에 나온 식별자는 무시
                 # 뒤에 나온 식별자가 정의되었는지 여부는 확인하지 않음 - 해당 에러도 출력하지 않음
@@ -128,7 +128,7 @@ class Lexer:
                 self.id_cnt += 1
 
                 # 식별자가 정의되지 않았을 때 "Unknown"으로 설정
-                if self.token_string not in self.symbol_table and not self.is_error: self.symbol_table[
+                if self.token_string not in self.symbolTable and not self.is_error: self.symbolTable[
                     self.token_string] = "Unknown"
 
                 return True
@@ -142,7 +142,7 @@ class Lexer:
 
             if self.before_token == TokenType.CONST:  # 상수가 연속해서 나올 때 - warning
                 warning = "(Warning) Continuous constants - ignoring constants" + "(" + self.token_string + ")"  # warning 메시지 저장
-                self.list_message.append(warning)  # warning 메시지 저장
+                self.listMessage.append(warning)  # warning 메시지 저장
                 self.is_warning = True
                 # 뒤에 나온 상수는 무시
                 self.index += len(self.token_string)
@@ -167,7 +167,7 @@ class Lexer:
                         warning += self.source[self.index]
                         self.index += 1
                     warning += ")"
-                    self.list_message.append(warning)
+                    self.listMessage.append(warning)
                     self.ignore_blank()
             return True
         else:
@@ -238,11 +238,11 @@ class Lexer:
 
                 if self.before_token == TokenType.IDENT:  # 식별자 다음에 (가 나올 때 - error
                     error = "(Error) There is left parenthesis after identifier"  # error 메시지 저장
-                    self.list_message.append(error)  # error 메시지 저장
+                    self.listMessage.append(error)  # error 메시지 저장
                     self.is_error = True  # error 발생 여부 플래그 설정
 
                     self.ignore_multiple_op()  # 연산자가 여러개 연속해서 나올 때 - warning
-                    self.go_to_next_statement()  # 다음 statement로 이동
+                    self.goNext()  # 다음 statement로 이동
                     if self.next_token != TokenType.SEMI_COLON and self.next_token != TokenType.EOF: self.lexical()  # 세미콜론이 아니면 다음 토큰을 읽어옴
                     return True
 
@@ -265,10 +265,10 @@ class Lexer:
 
                 if one_char_op == "=":  # :=를 =로 쓴경우 - warning
                     warning = "(Warning) Using = instead of := ==> assuming :="
-                    self.list_message.append(warning)
+                    self.listMessage.append(warning)
                 elif one_char_op == ":":  # :=를 :로 쓴경우 - warning
                     warning = "(Warning) Using : instead of := ==> assuming :="
-                    self.list_message.append(warning)
+                    self.listMessage.append(warning)
                 self.is_warning = True
 
                 self.op_after_assign_op()  #:= 다음에 연산자가 나올 때 - error
@@ -303,22 +303,22 @@ class Lexer:
                     warning += " "
                     self.index += 1
             warning += ")"
-            self.list_message.append(warning)
+            self.listMessage.append(warning)
 
     def op_after_assign_op(self):  #:= 다음에 연산자가 나올 때 - error
         self.ignore_blank()
         if self.index < len(self.source) and self.source[self.index] in "+-*/:=;)":
             # 대입 연산자 이후 다른 연산자가 나올때 - error
             error = "(Error) Operator(operater or right_paren, semi_colon, assign_op) after assignment operator"
-            self.list_message.append(error)
+            self.listMessage.append(error)
             self.is_error = True
-            self.go_to_next_statement()
+            self.goNext()
             if self.next_token != TokenType.SEMI_COLON and self.next_token != TokenType.EOF: self.lexical()
             return True
         else:
             return False
 
-    def go_to_next_statement(self):  # 다음 statement로 이동 - error발생시 파싱을 계속 할수 없으므로 lexer를 변형한 이 함수를 사용
+    def goNext(self):  # 다음 statement로 이동 - error발생시 파싱을 계속 할수 없으므로 lexer를 변형한 이 함수를 사용
         while self.index < len(self.source) and self.next_token != TokenType.SEMI_COLON and self.next_token != TokenType.EOF:
             self.before_token = self.next_token
             self.ignore_blank()  # 공백 무시
@@ -329,9 +329,9 @@ class Lexer:
             if check:
                 # 선언되지 않은 식별자가 나왔을 때 - error
                 # 원래는 파서가 발견해야하는 오류 이지만 이미 앞에서 오류가 발생하여 파싱이 중단되었을 경우에는 Lexer가 발견해야함
-                if self.token_string not in self.symbol_table:
+                if self.token_string not in self.symbolTable:
                     error = "(Error) Using undeclared identifier(" + self.token_string + ")"
-                    self.list_message.append(error)
+                    self.listMessage.append(error)
                     self.is_error = True
                 continue
 
@@ -357,7 +357,7 @@ class Lexer:
             # 세미콜론이 나왔는데 파일의 끝이면 - warning
             warning = "(Warning) There is semicolon at the end of the program ==> ignoring semicolon"
             self.now_stmt = self.now_stmt[:-1]
-            self.list_message.append(warning)
+            self.listMessage.append(warning)
             self.is_warning = True
             self.index += 1
 
@@ -366,9 +366,9 @@ class Lexer:
             self.index += 1
 
     def end_of_stmt(self):  # statement마다 실행되는 함수
-        if self.is_error and self.id_of_now_stmt in self.symbol_table:
+        if self.is_error and self.id_of_now_stmt in self.symbolTable:
             # 에러가 발생한 경우 - 해당 statement의 id를 Unknown으로 설정
-            self.symbol_table[self.id_of_now_stmt] = "Unknown"
+            self.symbolTable[self.id_of_now_stmt] = "Unknown"
 
         if not self.verbose:  # -v 옵션 없을 때
             print(self.now_stmt)  # 현재 파싱한 statement 출력
@@ -376,7 +376,7 @@ class Lexer:
             # ex) ID: 2; CONST: 1; OP: 1;
             print(f"ID: {self.id_cnt}; CONST: {self.const_cnt}; OP: {self.op_cnt};")
 
-            for i in self.list_message:  # 에러, 경고 메시지 출력
+            for i in self.listMessage:  # 에러, 경고 메시지 출력
                 print(i)
 
             if self.is_error == True or self.is_warning == True:
@@ -385,9 +385,9 @@ class Lexer:
             if self.is_warning == False and self.is_error == False:  # 에러, 경고가 없을 때
                 if not self.verbose: print("(OK)\n")  # OK 출력
 
-            # 다음 statement로 넘어가기 전에 now_stme, id_cnt, const_cnt, op_cnt, is_error, is_warning, list_message 초기화
+            # 다음 statement로 넘어가기 전에 now_stme, id_cnt, const_cnt, op_cnt, is_error, is_warning, listMessage 초기화
             self.now_stmt = ""
             self.id_cnt, self.const_cnt, self.op_cnt = 0, 0, 0
             self.is_error, self.is_warning, self.before_token = False, False, None
-            self.list_message = []
+            self.listMessage = []
             self.id_of_now_stmt = None
