@@ -241,9 +241,10 @@ class Lexer:
         if self.index < len(self.source) and self.source[self.index] in "+-*/:=)":
             self.is_warning = True
             # 기본 경고 메시지 설정
-            warning = "(Warning) More than one operator ==> ignored other operators except the first one"
+            warning = "(Warning) 중복 연산자 ==> "
             first_operator = self.source[self.index]  # 첫 번째 연산자 저장
             warning += first_operator
+            warning += " 제거"
             # 공백 처리
             while self.index < len(self.source) and self.source[self.index].isspace():
                 self.index += 1  # 공백 건너뜀

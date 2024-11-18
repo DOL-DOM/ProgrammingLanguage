@@ -88,6 +88,7 @@ class Parser(Lexer):#파서 클래스
                 self.listMessage.append(error)
                 return node, "Unknown"
 
+        
         # 결과 계산
         try:
             result = eval(term)
@@ -110,8 +111,12 @@ class Parser(Lexer):#파서 클래스
 
         # tree
         if self.test:
+            # symbolTable의 키를 알파벳 순서로 정렬하여 출력
+            for key in sorted(self.symbolTable.keys()):
+                if key is not None:
+                    print(f"{key}: {self.symbolTable[key]}", end="; ")
             for pre, _, node in RenderTree(tree):
-                print(f"{pre}{node.name}")
+                print(f"{pre}{node.type} {node.value}")
 
         #result
         if not self.verbose:
